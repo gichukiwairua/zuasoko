@@ -643,3 +643,8 @@ model Inventory {
 
   @@map("inventory")
 }
+generator client {
+  provider   = "prisma-client-js"
+  previewFeatures = ["dataProxy"]
+}
+
