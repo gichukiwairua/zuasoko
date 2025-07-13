@@ -1,0 +1,645 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  FARMER
+  CUSTOMER
+  DRIVER
+  FARMER_AGENT
+  ADMIN
+}
+
+enum DriverStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum AccountStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum ConsignmentStatus {
+  PENDING_APPROVAL
+  APPROVED
+  PRICE_NEGOTIATION
+  FARMER_APPROVED
+  DRIVER_ASSIGNED
+  DRIVER_ACCEPTED
+  DRIVER_DECLINED
+  COLLECTED
+  IN_SHOP
+  SOLD
+  CANCELLED
+}
+
+enum WalletTransactionType {
+  CREDIT
+  DEBIT
+  WITHDRAWAL_REQUEST
+  WITHDRAWAL_COMPLETED
+  ACTIVATION_FEE
+}
+
+model User {
+  id          String        @id @default(uuid())
+  email       String?       @unique
+  phone       String        @unique
+  password    String
+  role        UserRole
+  firstName   String
+  lastName    String
+  status      AccountStatus @default(PENDING_PAYMENT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Role-specific profiles
+  farmer      Farmer?
+  customer    Customer?
+  driver      Driver?
+  farmerAgent FarmerAgent?
+  admin       Admin?
+
+  // Common relationships
+  payments    Payment[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Farmer {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Farm details
+  farmName        String?
+  county          String
+  subCounty       String?
+  farmSize        Float?    // in acres
+  kraPin          String?
+  
+  // Location
+  latitude        Float?
+  longitude       Float?
+  
+  // Subscription
+  subscriptionPaid Boolean   @default(false)
+  subscriptionDate DateTime?
+  
+  // Agent relationship
+  farmerAgentId   String?
+  farmerAgent     FarmerAgent? @relation(fields: [farmerAgentId], references: [id])
+  
+  // Relationships
+  produce         Produce[]
+  orders          Order[]
+  consignments    Consignment[]
+  wallet          FarmerWallet?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("farmers")
+}
+
+model Customer {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Location preferences
+  county      String?
+  latitude    Float?
+  longitude   Float?
+  
+  // Preferences
+  loyaltyPoints Int     @default(0)
+  
+  // Relationships
+  orders      Order[]
+  reviews     Review[]
+  cart        Cart?
+  wishlists   Wishlist[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("customers")
+}
+
+model Driver {
+  id              String        @id @default(uuid())
+  userId          String        @unique
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Driver details
+  licenseNumber   String        @unique
+  vehicleType     String
+  vehicleRegNo    String        @unique
+  idNumber        String        @unique
+  
+  // Status
+  status          DriverStatus  @default(PENDING)
+  approvedAt      DateTime?
+  approvedBy      String?       // Admin ID
+  
+  // Location
+  currentLat      Float?
+  currentLng      Float?
+  isAvailable     Boolean       @default(false)
+  
+  // Performance
+  totalDeliveries Int           @default(0)
+  rating          Float?
+  
+  // Relationships
+  deliveries      Delivery[]
+  consignments    ConsignmentDriver[]
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("drivers")
+}
+
+model FarmerAgent {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Agent details
+  assignedCounty  String
+  onboardingQuota Int       @default(50)
+  
+  // Performance
+  farmersOnboarded Int      @default(0)
+  
+  // Relationships
+  farmers         Farmer[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("farmer_agents")
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Admin permissions
+  canApproveDrivers   Boolean @default(true)
+  canManageUsers      Boolean @default(true)
+  canViewAnalytics    Boolean @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admins")
+}
+
+model Produce {
+  id            String    @id @default(uuid())
+  farmerId      String
+  farmer        Farmer    @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  
+  // Produce details
+  name          String
+  category      String
+  quantity      Float
+  unit          String    // kg, bags, pieces, etc.
+  pricePerUnit  Float
+  description   String?
+  images        String[]  // Array of image URLs
+  
+  // Harvest details
+  harvestDate   DateTime?
+  expiryDate    DateTime?
+  
+  // Inventory Management
+  stockQuantity Float     @default(0)
+  minStockLevel Float?    // For low stock alerts
+  
+  // Status
+  isAvailable   Boolean   @default(true)
+  isApproved    Boolean   @default(false)
+  isFeatured    Boolean   @default(false)
+  
+  // SEO and Marketing
+  slug          String?   @unique
+  tags          String[]
+  
+  // Location
+  latitude      Float?
+  longitude     Float?
+  
+  // Relationships
+  orderItems    OrderItem[]
+  cartItems     CartItem[]
+  wishlists     Wishlist[]
+  inventory     Inventory?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("produce")
+}
+
+model Consignment {
+  id              String            @id @default(uuid())
+  farmerId        String
+  farmer          Farmer            @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  
+  // Consignment details
+  produceName     String
+  category        String
+  quantity        Float
+  unit            String
+  farmerPrice     Float             // Price suggested by farmer
+  adminPrice      Float?            // Price suggested by admin
+  finalPrice      Float?            // Final agreed price
+  description     String?
+  images          String[]
+  qualityNotes    String?
+  
+  // Harvest details
+  harvestDate     DateTime?
+  expiryDate      DateTime?
+  
+  // Status and workflow
+  status          ConsignmentStatus @default(PENDING_APPROVAL)
+  adminNotes      String?
+  farmerNotes     String?
+  
+  // Collection details
+  collectionAddress String?
+  collectionLat   Float?
+  collectionLng   Float?
+  collectionDate  DateTime?
+  
+  // Driver assignment
+  drivers         ConsignmentDriver[]
+  
+  // Shop integration
+  shopPrice       Float?            // Final retail price in shop
+  shopQuantity    Float?            // Quantity available in shop
+  
+  // Tracking
+  adminApprovedAt DateTime?
+  farmerApprovedAt DateTime?
+  collectedAt     DateTime?
+  inShopAt        DateTime?
+  
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@map("consignments")
+}
+
+model ConsignmentDriver {
+  id              String          @id @default(uuid())
+  consignmentId   String
+  consignment     Consignment     @relation(fields: [consignmentId], references: [id], onDelete: Cascade)
+  
+  driverId        String
+  driver          Driver          @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  
+  // Assignment status
+  isAssigned      Boolean         @default(true)
+  hasAccepted     Boolean?        // null = pending, true = accepted, false = declined
+  assignedAt      DateTime        @default(now())
+  respondedAt     DateTime?
+  
+  // Driver notes
+  driverNotes     String?
+  declineReason   String?
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([consignmentId, driverId])
+  @@map("consignment_drivers")
+}
+
+model FarmerWallet {
+  id              String    @id @default(uuid())
+  farmerId        String    @unique
+  farmer          Farmer    @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  
+  // Wallet balances
+  balance         Float     @default(0)
+  pendingBalance  Float     @default(0)    // Money from unsold consignments
+  totalEarned     Float     @default(0)
+  totalWithdrawn  Float     @default(0)
+  
+  // M-Pesa details
+  mpesaPhone      String?
+  
+  // Transactions
+  transactions    WalletTransaction[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("farmer_wallets")
+}
+
+model WalletTransaction {
+  id              String                @id @default(uuid())
+  walletId        String
+  wallet          FarmerWallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  
+  // Transaction details
+  type            WalletTransactionType
+  amount          Float
+  description     String
+  reference       String?               // External reference (M-Pesa code, etc.)
+  
+  // Related entities
+  consignmentId   String?               // If related to a consignment sale
+  paymentId       String?               // If related to a payment
+  
+  // Status
+  isProcessed     Boolean               @default(false)
+  processedAt     DateTime?
+  
+  createdAt       DateTime              @default(now())
+
+  @@map("wallet_transactions")
+}
+
+model Order {
+  id            String      @id @default(uuid())
+  customerId    String
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  
+  farmerId      String?
+  farmer        Farmer?     @relation(fields: [farmerId], references: [id])
+  
+  // Order details
+  totalAmount   Float
+  status        OrderStatus @default(PENDING)
+  
+  // Delivery details
+  deliveryAddress String
+  deliveryLat   Float?
+  deliveryLng   Float?
+  deliveryDate  DateTime?
+  
+  // Relationships
+  orderItems    OrderItem[]
+  payment       Payment?
+  delivery      Delivery?
+  reviews       Review[]
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String  @id @default(uuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  produceId   String
+  produce     Produce @relation(fields: [produceId], references: [id])
+  
+  quantity    Float
+  pricePerUnit Float
+  totalPrice  Float
+  
+  createdAt   DateTime @default(now())
+
+  @@map("order_items")
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  
+  orderId         String?       @unique
+  order           Order?        @relation(fields: [orderId], references: [id])
+  
+  // Payment details
+  amount          Float
+  currency        String        @default("KES")
+  paymentMethod   String        // MPESA, CARD, etc.
+  
+  // M-Pesa specific
+  mpesaCode       String?
+  phoneNumber     String?
+  
+  // Status
+  status          PaymentStatus @default(PENDING)
+  externalRef     String?       // External payment reference
+  
+  // Metadata
+  purpose         String        // SUBSCRIPTION, ORDER_PAYMENT, etc.
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("payments")
+}
+
+model Delivery {
+  id              String    @id @default(uuid())
+  orderId         String    @unique
+  order           Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  driverId        String?
+  driver          Driver?   @relation(fields: [driverId], references: [id])
+  
+  // Pickup details
+  pickupAddress   String
+  pickupLat       Float
+  pickupLng       Float
+  pickupTime      DateTime?
+  
+  // Delivery details
+  deliveryAddress String
+  deliveryLat     Float
+  deliveryLng     Float
+  deliveryTime    DateTime?
+  
+  // Route optimization
+  estimatedDistance Float?
+  estimatedDuration Int?    // in minutes
+  
+  // Status tracking
+  isPickedUp      Boolean   @default(false)
+  isDelivered     Boolean   @default(false)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("deliveries")
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  rating      Int      // 1-5 stars
+  comment     String?
+  
+  createdAt   DateTime @default(now())
+
+  @@map("reviews")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title     String
+  message   String
+  type      String   // WEATHER_ALERT, PAYMENT_SUCCESS, ORDER_UPDATE, etc.
+  isRead    Boolean  @default(false)
+  
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
+
+model WeatherAlert {
+  id          String   @id @default(uuid())
+  county      String
+  alertType   String   // RAIN, DROUGHT, STORM, etc.
+  severity    String   // LOW, MEDIUM, HIGH, CRITICAL
+  message     String
+  startDate   DateTime
+  endDate     DateTime?
+  
+  createdAt   DateTime @default(now())
+
+  @@map("weather_alerts")
+}
+
+model MarketPrice {
+  id          String   @id @default(uuid())
+  produce     String
+  county      String
+  avgPrice    Float
+  minPrice    Float
+  maxPrice    Float
+  currency    String   @default("KES")
+  
+  // Market data
+  marketName  String?
+  reportDate  DateTime
+  
+  createdAt   DateTime @default(now())
+
+  @@map("market_prices")
+}
+
+model Cart {
+  id          String     @id @default(uuid())
+  customerId  String     @unique
+  customer    Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  // Cart items
+  items       CartItem[]
+  
+  // Totals
+  totalItems  Int        @default(0)
+  totalAmount Float      @default(0)
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("carts")
+}
+
+model CartItem {
+  id          String   @id @default(uuid())
+  cartId      String
+  cart        Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  
+  produceId   String
+  produce     Produce  @relation(fields: [produceId], references: [id], onDelete: Cascade)
+  
+  quantity    Float
+  pricePerUnit Float
+  totalPrice  Float
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([cartId, produceId])
+  @@map("cart_items")
+}
+
+model Wishlist {
+  id          String   @id @default(uuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  produceId   String
+  produce     Produce  @relation(fields: [produceId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+
+  @@unique([customerId, produceId])
+  @@map("wishlists")
+}
+
+model Inventory {
+  id              String   @id @default(uuid())
+  produceId       String   @unique
+  produce         Produce  @relation(fields: [produceId], references: [id], onDelete: Cascade)
+  
+  // Stock levels
+  currentStock    Float    @default(0)
+  reservedStock   Float    @default(0)
+  availableStock  Float    @default(0)
+  
+  // Alerts
+  lowStockAlert   Boolean  @default(false)
+  outOfStock      Boolean  @default(false)
+  
+  // Last updated
+  lastRestocked   DateTime?
+  lastSold        DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("inventory")
+}
