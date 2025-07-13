@@ -3,26 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-  "dev": "next dev",
-  "build": "prisma generate && next build",
-  "start": "next start",
-  "lint": "next lint",
-  
-  "db:generate": "prisma generate",
-  "db:push": "prisma db push",
-  "db:seed": "tsx prisma/seed.ts",
-  "db:studio": "prisma studio",
-  "db:reset": "prisma migrate reset",
-  "db:deploy": "prisma migrate deploy",
-  "db:dump": "pg_dump $DATABASE_URL > zuasoko_db_dump.sql",
-
-  "setup": "npm install && npm run db:generate && npm run db:push && npm run db:seed",
-
-  "postinstall": "prisma generate",
-  "type-check": "tsc --noEmit"
-},
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset",
+    "db:deploy": "prisma migrate deploy",
+    "db:dump": "pg_dump $DATABASE_URL > zuasoko_db_dump.sql",
+    "setup": "npm install && npm run db:generate && npm run db:push && npm run db:seed",
+    "postinstall": "prisma generate",
+    "type-check": "tsc --noEmit"
+  },
   "dependencies": {
-    "@prisma/client": "^5.7.0",
+    "@prisma/client": "^5.22.0",
+    "prisma": "^6.11.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/mapbox-gl": "^3.1.0",
     "@types/node": "^20",
@@ -47,8 +45,7 @@
   },
   "devDependencies": {
     "eslint": "^8",
-    "eslint-config-next": "14.0.3",
-    "prisma": "^6.11.1"
+    "eslint-config-next": "14.0.3"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
