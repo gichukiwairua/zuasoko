@@ -1,8 +1,6 @@
 {
-  "functions": {
-    "app/api/**/*.ts": {
-      "maxDuration": 30
-    }
-  },
-  "installCommand": "npm install && npx prisma generate"
+  "installCommand": "npm install && npx prisma generate",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/" }
+  ]
 }
